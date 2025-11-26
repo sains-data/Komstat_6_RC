@@ -1,0 +1,292 @@
+---
+title: "Tugas Besar Komstat"
+author: "Kelompok 6"
+date: "2025-11-21"
+output: html_document
+---
+
+# 1. Library
+
+```{r}
+# Memanggil Library
+library (tidyverse)
+library(ggplot2)
+library(fitdistrplus)
+library(gridExtra)
+```
+
+# 2. Data
+
+```{r}
+# Memanggil data
+data <- read.csv("~/Documents/TUBES KOMSTAT/tx2.csv")
+
+# GANTI sesuai nama kolom aslinya
+data$TAVG <- as.numeric(data$TAVG)
+
+# Lihat beberapa data
+head(data)
+```
+
+```{r}
+# Lihat dimensi dari data
+dim(data)
+```
+
+```{r}
+# Cek jumlah missing value kolom TAVG
+sum(is.na(data$TAVG))
+```
+
+```{r}
+# statistik deskriptif sederhana untuk TAVG
+summary(data$TAVG)
+```
+
+# 3. Visualisasi Data Awal (TAVG)
+
+```{r}
+hist(data$TAVG, main="Histogram Temperatur Rata-rata", xlab="TAVG", 
+     col=rgb(1, 0.6, 0.8, 0.5), breaks = 10)
+```
+
+```{r}
+boxplot(data$TAVG,
+        names = "Tx",
+        col = rgb(1, 0.6, 0.8, 0.5),
+        main = "Distribusi Temperatur Rata-rata (TAVG)",
+        ylab = "Suhu")
+```
+
+```{r}
+str(data$TANGGAL)
+head(data$TANGGAL, 10)
+```
+
+```{r}
+# Pastikan kolom tanggal sudah dalam format Date
+
+data$TANGGAL <- as.Date(data$TANGGAL, format = "%d-%m-%Y")
+
+# Plot time series
+plot(
+  data$TANGGAL, data$TAVG,
+  type = "l",         # "l" = line graph
+  col = rgb(0, 0, 0.5, 0.5),  # warna garis
+  lwd = 2,            # ketebalan garis
+  xlab = "Tanggal",
+  ylab = "TAVG (°C)",
+  main = "Pergerakan Suhu Rata-Rata Harian (TAVG)"
+)
+```
+
+# 4. Uji Normalitas
+
+```{r}
+# Uji normalitas
+shapiro.test(data$TAVG)
+```
+
+```{r}
+# Plot QQ untuk TAVG (tmperatur Rata-rata)
+qqnorm(data$TAVG)
+qqline(data$TAVG)
+```
+
+```{r}
+# Cari parameter dari data dengan metode normal MLE
+fit_norm <- fitdist(data$TAVG, "norm") 
+
+# Ambil parameter
+fit_norm$estimate # Mean dan SD
+```
+
+```{r}
+mu_hat <- fit_norm$estimate[1]
+sdv_hat <- fit_norm$estimate[2]
+mu_hat
+```
+
+```{r}
+sdv_hat
+```
+
+# 5. Simulasi dengan Inverse Transform Method
+
+## a. Fungsi Inverse Transform Method
+
+```{r}
+# Metode Inverse Transform
+set.seed(123)
+n <- 1000
+u <- runif(n)
+x_inv <- rnorm(u, mean = mu_hat, sd = sdv_hat)
+```
+
+## b. Visualisasi Perbandingan
+
+```{r}
+# Side-by-Side Comparison
+par(mfrow = c(1, 2)) # 1 baris, 2 kolom plot
+
+hist(data$TAVG, breaks = 10, main = "Histogram Data Asli", col = rgb(1, 0.6, 0.8, 0.5), xlab = "Nilai")
+
+hist(x_inv, breaks = 10, main = "Histogram Data Simulasi\nInverse-Transform", col = rgb(0.68, 0.85, 0.9, 0.5), xlab = "Nilai")
+```
+
+```{r}
+hist(data$TAVG, breaks = 15, col = rgb(1, 0.6, 0.8, 0.5), main = "Overlay Histogram X1 & X
+2",
+ xlab = "Nilai", freq = FALSE)
+hist(x_inv, breaks = 15, col = rgb(0.68, 0.85, 0.9, 0.5), add = TRUE, freq = FALSE)
+
+lines(density(data$TAVG), col = "magenta", lwd = 2)
+lines(density(x_inv), col = "blue", lwd = 2)
+
+
+legend("topleft",
+       legend = c("Distribusi Asli", "Transformation Method"),
+       fill = c(rgb(1, 0.6, 0.8, 0.5), rgb(0.68, 0.85, 0.9, 0.5)),
+       border = NA,
+       cex = 0.7,       # Mengecilkan teks legend
+       box.lwd = 0.5,   # Menipiskan border kotak legend
+       box.col = "grey70", 
+       bg = rgb(1,1,1,0.7)  
+)
+```
+
+## c. **Uji Kesamaan**
+
+```{r}
+# Uji kesamaan distribusi menggunakan Kolmogorov-Smirnov
+ks.test(data$TAVG, x_inv)
+```
+
+# Simulasi dengan Transformation Method
+
+## a. Fungsi Transformation Method
+
+```{r}
+# Box-Muller Transform
+set.seed(123)
+normal_box_muller <- function(n, mean = 0, sd = 1) {
+ # jumlah pasangan (karena tiap iterasi menghasilkan 2 angka)
+ m <- ceiling(n / 2)
+ U1 <- runif(m)
+ U2 <- runif(m)
+ R <- sqrt(-2 * log(U1))
+ theta <- 2 * pi * U2
+ Z1 <- R * cos(theta)
+ Z2 <- R * sin(theta)
+ Z <- c(Z1, Z2)
+ Z <- Z[1:n] # ambil sebanyak n saja
+
+ return(mean + sd * Z)
+}
+# Generate 1000 data
+x_box <- normal_box_muller(1000, mean = mu_hat, sd = sdv_hat)
+```
+
+## b. **Visualisasi Perbandingan**
+
+```{r}
+# Side-by-Side Comparison
+par(mfrow = c(1, 2)) # 1 baris, 2 kolom plot
+
+hist(data$TAVG, breaks = 10, main = "Histogram Data Asli", col = rgb(1, 0.6, 0.8, 0.5), xlab = "Nilai")
+hist(x_box, breaks = 10, main = "Histogram Data Simulasi\nTransformation Method", col = rgb(0.68, 0.85, 0.9, 0.5), xlab = "Nilai")
+```
+
+```{r}
+hist(data$TAVG, breaks = 15, col = rgb(1, 0.6, 0.8, 0.5), main = "Overlay Histogram X1 & X
+2",
+ xlab = "Nilai", freq = FALSE)
+hist(x_box, breaks = 15, col = rgb(0.68, 0.85, 0.9, 0.5), add = TRUE, freq = FALSE)
+
+lines(density(data$TAVG), col = "magenta", lwd = 2)
+lines(density(x_box), col = "blue", lwd = 2)
+
+legend("topleft",
+       legend = c("Distribusi Asli", "Transformation Method"),
+       fill = c(rgb(1, 0.6, 0.8, 0.5), rgb(0.68, 0.85, 0.9, 0.5)),
+       border = NA,
+       cex = 0.7,       # Mengecilkan teks legend
+       box.lwd = 0.5,   # Menipiskan border kotak legend
+       box.col = "grey70", 
+       bg = rgb(1,1,1,0.7) 
+)
+```
+
+## c. **Uji Kesamaan**
+
+```{r}
+# Uji kesamaan distribusi menggunakan Kolmogorov-Smirnov
+ks.test(data$TAVG, x_box)
+```
+
+# Simulasi dengan Acceptance-Rejection
+
+## a. **Fungsi Acceptance - Rejection Method**
+
+```{r}
+# Acceptance-Rejection menggunakan Cauchy proposal
+set.seed(123)
+normal_ar <- function(n) {
+ samples <- numeric(n)
+ count <- 0
+
+ c <- 1.5 # konstanta pembesar
+
+ while (count < n) {
+ x_proposal <- rcauchy(1) # kandidat dari proposal Cauchy
+ u <- runif(1)
+
+ f_x <- dnorm(x_proposal) # pdf normal target
+ g_x <- 1/(pi * (1 + x_proposal^2)) # pdf cauchy proposal
+
+ # acceptance condition
+ if (u <= f_x / (c * g_x)) {
+ count <- count + 1
+ samples[count] <- x_proposal
+ }
+ }
+ return(samples)
+}
+# contoh penggunaan
+x_ar <- mu_hat + sdv_hat * normal_ar(1000)
+```
+
+## b. Visualisasi Perbandingan
+
+```{r}
+# Side-by-Side Comparison
+par(mfrow = c(1, 2)) # 1 baris, 2 kolom plot
+
+hist(data$TAVG, breaks = 10, main = "Histogram Data Asli", col = rgb(1, 0.6, 0.8, 0.5), xlab = "Nilai")
+hist(x_ar, breaks = 10, main = "Histogram Data Simulasi\nAcceptance-Rejection", col =  rgb(0.68, 0.85, 0.9, 0.5), xlab = "Nilai")
+```
+
+```{r}
+hist(data$TAVG, breaks = 15, col = rgb(1, 0.6, 0.8, 0.5), main = "Overlay Histogram X1 & X
+2",
+ xlab = "Nilai", freq = FALSE)
+hist(x_ar, breaks = 15, col =rgb(0.68, 0.85, 0.9, 0.5), add = TRUE, freq = FALSE)
+
+lines(density(data$TAVG), col = "magenta", lwd = 2)
+lines(density(x_ar), col = "blue", lwd = 2)
+
+legend("topleft",
+       legend = c("Distribusi Asli", "Transformation Method"),
+       fill = c(rgb(1, 0.6, 0.8, 0.5), rgb(0.68, 0.85, 0.9, 0.5)),
+       border = NA,
+       cex = 0.7,       # Mengecilkan teks legend
+       box.lwd = 0.5,   # Menipiskan border kotak legend
+       box.col = "grey70", 
+       bg = rgb(1,1,1,0.7) 
+)
+```
+
+```{r}
+# Uji kesamaan distribusi menggunakan Kolmogorov-Smirnov
+ks.test(data$TAVG, x_ar)
+```
